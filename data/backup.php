@@ -1,23 +1,19 @@
 <?php
-// backup.php - Place this in your website root directory
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-User-ID, X-Backup-Version');
 
-// Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
     exit;
 }
 
-// Get the posted data
 $input = json_decode(file_get_contents('php://input'), true);
 
 if (!$input || !isset($input['user'])) {
@@ -26,7 +22,7 @@ if (!$input || !isset($input['user'])) {
     exit;
 }
 
-// Clean the username (remove any dangerous characters)
+// Clean and validate the username
 $user = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['user']);
 if (empty($user)) {
     http_response_code(400);
@@ -34,40 +30,36 @@ if (empty($user)) {
     exit;
 }
 
-// Create data directory if it doesn't exist
-if (!file_exists('data')) {
-    if (!mkdir('data', 0755, true)) {
-        http_response_code(500);
-        echo json_encode(['error' => 'Could not create data directory']);
-        exit;
-    }
-}
-
-// SINGLE, CONSISTENT filename format - no timestamps!
+// ALWAYS use this clean filename format
 $filename = "data/cineshelf_backup_{$user}.json";
 
-// Add metadata to the backup
-$input['_backup_metadata'] = [
-    'user' => $user,
-    'backup_time' => date('Y-m-d H:i:s'),
-    'backup_timestamp' => date('c'),
-    'items_count' => count($input['copies'] ?? []),
-    'movies_count' => count($input['movies'] ?? []),
-    'version' => '2.2'
-];
+// Create data directory if it doesn't exist
+if (!file_exists('data')) {
+    mkdir('data', 0755, true);
+}
 
-// Save the backup (overwrites previous backup for this user)
+// Log what we're doing for debugging
+error_log("CineShelf Backup: User '{$user}' -> File '{$filename}'");
+error_log("CineShelf Backup: Input data keys: " . implode(', ', array_keys($input)));
+
+// Add clean metadata to backup
+$input['backupLabel'] = "Backup for {$user}";
+$input['backupTime'] = date('Y-m-d H:i:s');
+$input['serverVersion'] = '2.1';
+$input['filename_created'] = basename($filename);
+
+// Write the backup file
 if (file_put_contents($filename, json_encode($input, JSON_PRETTY_PRINT))) {
+    error_log("CineShelf Backup: SUCCESS - Wrote to {$filename}");
     echo json_encode([
-        'success' => true,
+        'success' => true, 
         'message' => 'Backup saved successfully',
-        'user' => $user,
         'filename' => basename($filename),
-        'items_backed_up' => count($input['copies'] ?? []),
-        'movies_backed_up' => count($input['movies'] ?? []),
-        'backup_time' => date('c')
+        'user' => $user,
+        'timestamp' => date('c')
     ]);
 } else {
+    error_log("CineShelf Backup: FAILED - Could not write to {$filename}");
     http_response_code(500);
     echo json_encode(['error' => 'Failed to save backup']);
 }

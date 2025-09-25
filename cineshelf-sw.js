@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cineshelf-v2';
+const CACHE_NAME = 'cineshelf';
 const urlsToCache = [
     './',
     './index.html',
